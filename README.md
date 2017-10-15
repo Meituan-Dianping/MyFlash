@@ -8,6 +8,7 @@ MyFlash是由美团点评公司技术工程部开发维护的一个回滚DML操�
 ### 三、限制
 1. binlog格式必须为row,且binlog_row_image=full
 2. 仅支持5.6与5.7
+3. 只能回滚DML（增、删、改）
 ### 四、FAQ
 1. 实现的原理是什么？   
 - 答：参考文章http://url.cn/5yVTfLY
