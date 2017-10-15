@@ -1,11 +1,7 @@
 ### 1.How to use
 
-1.
 ```
 cd binary
-```
-2.
-```
 ./flashback --help
 
 Usage:
