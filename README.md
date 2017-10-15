@@ -6,7 +6,7 @@ MyFlash是由美团点评公司技术工程部开发维护的一个回滚DML操�
 2. [使用](./doc/how_to_use.md)
 3. [测试用例](./doc/TestCase.md)
 ### 三、限制
-1. binlog格式必须为row
+1. binlog格式必须为row,且binlog_row_image=full
 2. 仅支持5.6与5.7
 ### 四、联系方式
 QQ群:645702809
