@@ -79,7 +79,7 @@ mysqlbinlog binlog_output_base.flashback | mysql -h<host> -u<user> -p
 ```
 2.回滚该文件中的所有insert语句
 ```
-./flashback  --sqltypes='INSERT' --binlogFileNames=haha.000041
+./flashback  --sqlTypes='INSERT' --binlogFileNames=haha.000041
 mysqlbinlog binlog_output_base.flashback | mysql -h<host> -u<user> -p
 ```
 3.回滚大文件
