@@ -2498,6 +2498,11 @@ int main(int argc, char **argv){
   gsize i=0;
 
   while( binlogFileNameArray[i] ){
+	if( access(binlogFileNameArray[i] , F_OK ) == -1 ) {
+ 		g_error("binlog:%s does not exist\n",binlogFileNameArray[i]);
+		return 1;	
+	}
+    		
 
 
   	GIOChannel * binlogGlibChannel;
