@@ -3,6 +3,7 @@ MyFlash是由美团点评公司技术工程部开发维护的一个回滚DML操�
 **该工具已经在美团点评内部使用**
 ### 二、详细说明
 1. [安装](./doc/INSTALL.md)
+2. [功能说明](./doc/Function.md)
 2. [使用](./doc/how_to_use.md)
 3. [测试用例](./doc/TestCase.md)
 ### 三、限制
