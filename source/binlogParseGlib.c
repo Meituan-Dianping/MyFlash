@@ -2380,13 +2380,13 @@ GArray* parsemultipleGtidSetToGtidSetInfoArray(gchar* multipleGtidSet ){
 
     //:12
     if( (2 > g_strv_length(seqNos)) ){
-        gtidSetInfo->startSeqNo=atoll(seqNos[0]);
-        gtidSetInfo->stopSeqNo=atoll(seqNos[0]);
+        gtidSetInfo->startSeqNo=S64(seqNos[0]);
+        gtidSetInfo->stopSeqNo=S64(seqNos[0]);
     }
     //:12-100
     else{
-        gtidSetInfo->startSeqNo=atoll(seqNos[0]);
-        gtidSetInfo->stopSeqNo=atoll(seqNos[1]);
+        gtidSetInfo->startSeqNo=S64(seqNos[0]);
+        gtidSetInfo->stopSeqNo=S64(seqNos[1]);
     }
 
     g_array_append_val(gtidSetArray,*gtidSetInfo);
