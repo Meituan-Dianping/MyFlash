@@ -1,6 +1,7 @@
 #include <endian.h>
 #include <glib.h>
 #include <unistd.h>
+#include <inttypes.h>
 
 #define MAX_HEADER_LENGTH 200
 #define EVENT_HEADER_LENGTH 19
@@ -1545,7 +1546,9 @@ int parseTableMapEventData(gchar* dataBuffer,  TableMapEvent* tableMapEvent){
       tableMapEvent->columnMetadataArray[columnIndex]=metadata;
     }else if( 2 == metadataLength ){
       dataBuffer=getGuint16AndAdvance(dataBuffer,&metadata);
-      metadata=htobe16(metadata);
+      if(MYSQL_TYPE_STRING==tableMapEvent->columnTypeArray->data[columnIndex]){
+        metadata=htobe16(metadata);
+      }
       tableMapEvent->columnMetadataArray[columnIndex]=metadata;
     }
   }
@@ -2340,6 +2343,19 @@ int processBinlog(GIOChannel * binlogGlibChannel,gsize fileIndex, gboolean isLas
 
 
 
+}
+
+int64_t S64(const char *s) {
+  int64_t i;
+  char c ;
+  int scanned = sscanf(s, "%" SCNd64 "%c", &i, &c);
+  if (scanned == 1) return i;
+  if (scanned > 1) {
+    // TBD about extra data found
+    return i;
+    }
+  // TBD failed to scan;
+  return 0;
 }
 
 
