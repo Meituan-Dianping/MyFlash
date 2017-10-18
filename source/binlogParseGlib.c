@@ -770,6 +770,7 @@ gchar* getGuint32AndAdvance(gchar *buffer, guint32 *value ){
 
 gchar* getGuint16AndAdvance(gchar *buffer, guint16 *value ){
 	memcpy(value, buffer,sizeof(guint16));
+	//*value=GINT_FROM_BE(*value);
 	return buffer+sizeof(guint16);
 }
 
@@ -1544,6 +1545,7 @@ int parseTableMapEventData(gchar* dataBuffer,  TableMapEvent* tableMapEvent){
       tableMapEvent->columnMetadataArray[columnIndex]=metadata;
     }else if( 2 == metadataLength ){
       dataBuffer=getGuint16AndAdvance(dataBuffer,&metadata);
+      metadata=htobe16(metadata);
       tableMapEvent->columnMetadataArray[columnIndex]=metadata;
     }
   }
@@ -2105,6 +2107,7 @@ int constructBinlogFromLeastExecutionUintList( GList* allLeastExecutionUnitList 
   gchar* binlogFlashbackOutFileName;
   //binlogFlashbackOutFileName=g_new0(gchar, strlen(optOutBinlogFileNameBase)+strlen(binlogFlashbackOutFileNamePostfix)+1+1);
   binlogFlashbackOutFileName = g_strdup_printf("%s.%s",optOutBinlogFileNameBase,binlogFlashbackOutFileNamePostfix);
+  
   GIOChannel*  binlogFlashbackOutChannel;
   binlogFlashbackOutChannel=getIoChannelForWrite(binlogFlashbackOutFileName);
   GIOStatus ioStatus;
