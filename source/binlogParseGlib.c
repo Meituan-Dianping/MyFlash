@@ -1,7 +1,12 @@
+
+
 #include <endian.h>
 #include <glib.h>
 #include <unistd.h>
 #include <inttypes.h>
+#include <dirent.h>
+#include <regex.h>
+
 
 #define MAX_HEADER_LENGTH 200
 #define EVENT_HEADER_LENGTH 19
@@ -33,6 +38,7 @@ static time_t globalStartTimestamp=0;
 static time_t globalStopTimestamp=0;
 static GArray* globalIncludeGtidsArray=NULL;
 static GArray* globalExcludeGtidsArray=NULL;
+
 
 
 
@@ -290,6 +296,66 @@ typedef struct _Transaction{
 
 */
 
+
+gboolean checkPotentialConflictOutputFile(gchar* baseName){
+    int reti;
+    regex_t regex;
+    reti = regcomp(&regex, baseName, 0);
+    if(reti){
+      g_error("failed to compile regex %s", baseName);
+    }
+    DIR           *d;
+    struct dirent *dir;
+    d = opendir(".");
+    if (d)
+    {
+      while ((dir = readdir(d)) != NULL)
+      {
+        if (!regexec(&regex, dir->d_name, 0, NULL, 0)){
+          g_error("the output %s.* may overwrite the existing file %s, please choose a newFileName specified by --outBinlogFileNameBase or remove the existing file",baseName,dir->d_name);
+          return FALSE;
+        }
+      }
+
+      closedir(d);
+    }
+
+    return TRUE;
+}
+
+gchar* constructFileNameWithPostfixIndex(gchar* baseName, gsize postfixIndex){
+  gchar* completeFileName;
+  //completeFileName=g_new0(gchar,strlen(baseName)+postfixDisplayLength+1+1);
+  if(0 == postfixIndex){
+    completeFileName=g_strdup_printf("%s",baseName);
+  }
+  else{
+    completeFileName=g_strdup_printf("%s.%06lu",baseName,postfixIndex);
+  }
+  return completeFileName;
+}
+
+gboolean rotateFile(gchar* baseName, gsize postfixIndex){
+    gchar* completeFileName=constructFileNameWithPostfixIndex(baseName,postfixIndex);
+    if( -1 == access( completeFileName, F_OK )  ) {
+      return FALSE;
+    }
+    rotateFile(baseName,postfixIndex+1);
+    gchar* newFileName=constructFileNameWithPostfixIndex(baseName,postfixIndex+1);
+    gchar* oldFileName=constructFileNameWithPostfixIndex(baseName,postfixIndex);
+    if(0 != rename(oldFileName,newFileName) ){
+      g_error("unable to rename %s to %s",oldFileName, newFileName);
+    }
+    return TRUE;
+}
+
+gboolean rotateOutputBinlogFileNames(gchar* baseName, gsize postfixIndex){
+    gchar* flashbackBaseName;
+    flashbackBaseName=g_strdup_printf("%s.%s",baseName,"flashback");
+    rotateFile(flashbackBaseName,postfixIndex);
+    return TRUE;
+}
+
 gboolean isGtidEventInGtidSet(GtidEvent* gtidEvent, GtidSetInfo* gtidSetInfo){
   if((0==memcmp(gtidEvent->uuid,gtidSetInfo->uuid,16)) ){
     if((gtidEvent->seqNo >= gtidSetInfo->startSeqNo) && ( gtidEvent->seqNo <=gtidSetInfo->stopSeqNo ) ){
@@ -356,12 +422,7 @@ gchar* packUuidInto16Bytes(gchar* originalUuid){
 }
 
 
-gchar* constructFileNameWithPostfixIndex(gchar* baseName, gsize postfixIndex, gsize postfixDisplayLength){
-  gchar* completeFileName;
-  //completeFileName=g_new0(gchar,strlen(baseName)+postfixDisplayLength+1+1);
-  completeFileName=g_strdup_printf("%s.%06lu",baseName,postfixIndex);
-  return completeFileName;
-}
+
 
 gboolean isDatabaseShouldApply(gchar* databaseName){
   if (NULL == optDatabaseNames){
@@ -2094,7 +2155,7 @@ int constructBinlogFromEventList(GList* allEventsList){
   gchar* completeFileName;
   allEventsList=splitBigRowEventsToTableMapWithRowEventForEventList(allEventsList);
   while(NULL != allEventsList){
-    completeFileName=constructFileNameWithPostfixIndex(optOutBinlogFileNameBase,postfixIndex,6);
+    completeFileName=constructFileNameWithPostfixIndex(optOutBinlogFileNameBase,postfixIndex);
     allEventsList=constructBinlogFromEventListWithSizeLimit(allEventsList,completeFileName,optMaxSplitSize);
     postfixIndex++;
   }
@@ -2110,7 +2171,7 @@ int constructBinlogFromLeastExecutionUintList( GList* allLeastExecutionUnitList 
   gchar* binlogFlashbackOutFileName;
   //binlogFlashbackOutFileName=g_new0(gchar, strlen(optOutBinlogFileNameBase)+strlen(binlogFlashbackOutFileNamePostfix)+1+1);
   binlogFlashbackOutFileName = g_strdup_printf("%s.%s",optOutBinlogFileNameBase,binlogFlashbackOutFileNamePostfix);
-  
+
   GIOChannel*  binlogFlashbackOutChannel;
   binlogFlashbackOutChannel=getIoChannelForWrite(binlogFlashbackOutFileName);
   GIOStatus ioStatus;
@@ -2431,6 +2492,7 @@ int parseOption(int argc, char **argv){
      optOutBinlogFileNameBase=g_new0(gchar, strlen(defaultBaseName)+1);
      memcpy(optOutBinlogFileNameBase,defaultBaseName,strlen(defaultBaseName)+1);
    }
+   checkPotentialConflictOutputFile(optOutBinlogFileNameBase);
    //convert MB to B
    optMaxSplitSize=optMaxSplitSize*1024*1024;
 
@@ -2519,9 +2581,9 @@ int main(int argc, char **argv){
   while( binlogFileNameArray[i] ){
 	if( access(binlogFileNameArray[i] , F_OK ) == -1 ) {
  		g_error("binlog:%s does not exist\n",binlogFileNameArray[i]);
-		return 1;	
+		return 1;
 	}
-    		
+
 
 
   	GIOChannel * binlogGlibChannel;
@@ -2534,8 +2596,8 @@ int main(int argc, char **argv){
   	if (G_IO_STATUS_NORMAL != encodingSetStatus ){
   		g_warning("failed to set to binary mode \n");
   	}
-
-	   processBinlog(binlogGlibChannel,i, ( i == (binlogFileNameArraySize-1) ) );
+    rotateOutputBinlogFileNames(optOutBinlogFileNameBase,0);
+	  processBinlog(binlogGlibChannel,i, ( i == (binlogFileNameArraySize-1) ) );
      i++;
    }
 
