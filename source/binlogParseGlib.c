@@ -1,5 +1,6 @@
 
 
+
 #include <endian.h>
 #include <glib.h>
 #include <unistd.h>
@@ -296,6 +297,40 @@ typedef struct _Transaction{
 
 */
 
+
+gboolean isConsideredEventType(guint8 eventType){
+  gboolean isConsidered=FALSE;
+  switch(eventType){
+    case FORMAT_DESCRIPTION_EVENT:{
+      isConsidered=TRUE;
+      break;
+    }
+    case TABLE_MAP_EVENT:{
+      isConsidered=TRUE;
+      break;
+    }
+    case WRITE_ROWS_EVENT:
+    case UPDATE_ROWS_EVENT:
+    case DELETE_ROWS_EVENT:{
+      isConsidered=TRUE;
+      break;
+    }
+    case QUERY_EVENT:{
+      isConsidered=TRUE;
+      break;
+    }
+    case XID_EVENT:{
+      isConsidered=TRUE;
+      break;
+    }
+    case GTID_LOG_EVENT:{
+      isConsidered=TRUE;
+      break;
+    }
+  }
+
+  return isConsidered;
+}
 
 gboolean checkPotentialConflictOutputFile(gchar* baseName){
     int reti;
@@ -2373,7 +2408,7 @@ int processBinlog(GIOChannel * binlogGlibChannel,gsize fileIndex, gboolean isLas
       allEventsList=g_list_delete_link(allEventsList,head);
     }
 
-    if(TRUE == isShouldDiscardForGtid){
+    if((TRUE == isShouldDiscardForGtid) && isConsideredEventType(eventHeader->eventType)){
       g_warning("we discard it for gtid setting");
       GList* head = allEventsList;
       allEventsList=g_list_delete_link(allEventsList,head);
