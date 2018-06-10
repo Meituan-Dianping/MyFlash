@@ -1,6 +1,7 @@
 
 
 
+
 #include <endian.h>
 #include <glib.h>
 #include <unistd.h>
@@ -1880,34 +1881,55 @@ int constructLeastExecutionUnitFromAllEventsList(const GList *allEventsList, GLi
   leastExecutionUnitEvents=NULL;
   gsize leastExecutionUnitEventsIndicator;
   leastExecutionUnitEventsIndicator=0;
+  TableMapEvent * tableMapEventPointer = NULL;
   while(NULL != allEventsList){
 
      eventWrapper=(EventWrapper*)(allEventsList->data);
 
      //begin one tableMapEvent with serveral rowEvents
-     if( TABLE_MAP_EVENT == eventWrapper->eventType ){
-       leastExecutionUnitEvents = g_new0(LeastExecutionUnitEvents,1);
-       leastExecutionUnitEvents->tableMapEvent=(TableMapEvent *)eventWrapper->eventPointer;
-       g_debug("%s added to leastExecutionUnitEvents \n",Binlog_event_type_name[eventWrapper->eventType]);
-     }
-     else if( isRowEvent(eventWrapper->eventType ) ){
-       leastExecutionUnitEvents->rowEventList=g_list_append(leastExecutionUnitEvents->rowEventList, (RowEvent *)eventWrapper->eventPointer);
-       leastExecutionUnitEvents->originalRowEventType=eventWrapper->eventType;
-       g_debug("%s added to leastExecutionUnitEvents \n",Binlog_event_type_name[eventWrapper->eventType]);
 
-	if(  (NULL != allEventsList->next) && ( isRowEvent(((EventWrapper*)(allEventsList->next->data))->eventType) ) ){
-	//do nothing
-		int i=1;
-	}
-        else if(( NULL != leastExecutionUnitEvents->tableMapEvent) && (TRUE == isLeastExecutionUnitShouldKeep(leastExecutionUnitEvents) )){
-
+       if( TABLE_MAP_EVENT == eventWrapper->eventType ){
+         tableMapEventPointer = (TableMapEvent *)eventWrapper->eventPointer;
+       }else if( isRowEvent(eventWrapper->eventType ) ){
+         leastExecutionUnitEvents = g_new0(LeastExecutionUnitEvents,1);
+         leastExecutionUnitEvents->tableMapEvent = tableMapEventPointer;
+         leastExecutionUnitEvents->rowEventList=g_list_append(leastExecutionUnitEvents->rowEventList, (RowEvent *)eventWrapper->eventPointer);
+         leastExecutionUnitEvents->originalRowEventType=eventWrapper->eventType;
+         g_debug("%s added to leastExecutionUnitEvents \n",Binlog_event_type_name[eventWrapper->eventType]);
+         if(  (NULL != allEventsList->next) && ( isRowEvent(((EventWrapper*)(allEventsList->next->data))->eventType) ) ){
+           int i=1;
+         }
+         else if(( NULL != leastExecutionUnitEvents->tableMapEvent) && (TRUE == isLeastExecutionUnitShouldKeep(leastExecutionUnitEvents) )){
            *allLeastExecutionUnitList=g_list_append(*allLeastExecutionUnitList,leastExecutionUnitEvents);
          }
+
+
        }else{
-
-       g_debug("skip the event %s\n", Binlog_event_type_name[eventWrapper->eventType]);
-
-     }
+          g_debug("skip the event %s\n", Binlog_event_type_name[eventWrapper->eventType]);
+       }
+//     if( TABLE_MAP_EVENT == eventWrapper->eventType ){
+//       leastExecutionUnitEvents = g_new0(LeastExecutionUnitEvents,1);
+//       leastExecutionUnitEvents->tableMapEvent=(TableMapEvent *)eventWrapper->eventPointer;
+//       g_debug("%s added to leastExecutionUnitEvents \n",Binlog_event_type_name[eventWrapper->eventType]);
+//     }
+//     else if( isRowEvent(eventWrapper->eventType ) ){
+//       leastExecutionUnitEvents->rowEventList=g_list_append(leastExecutionUnitEvents->rowEventList, (RowEvent *)eventWrapper->eventPointer);
+//       leastExecutionUnitEvents->originalRowEventType=eventWrapper->eventType;
+//       g_debug("%s added to leastExecutionUnitEvents \n",Binlog_event_type_name[eventWrapper->eventType]);
+//
+//	if(  (NULL != allEventsList->next) && ( isRowEvent(((EventWrapper*)(allEventsList->next->data))->eventType) ) ){
+//	//do nothing
+//		int i=1;
+//	}
+//        else if(( NULL != leastExecutionUnitEvents->tableMapEvent) && (TRUE == isLeastExecutionUnitShouldKeep(leastExecutionUnitEvents) )){
+//
+//           *allLeastExecutionUnitList=g_list_append(*allLeastExecutionUnitList,leastExecutionUnitEvents);
+//         }
+//       }else{
+//
+//       g_debug("skip the event %s\n", Binlog_event_type_name[eventWrapper->eventType]);
+//
+//     }
      //end one tableMapEvent with serveral rowEvents
      //other non TableMapEvent non RowEvent
     allEventsList=allEventsList->next;
