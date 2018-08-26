@@ -1296,13 +1296,25 @@ gsize getMetadataLength(guint8 fieldType, gchar* dataBuffer){
 
 }
 
+enum_field_types real_type(guint8 fieldType, guint32 metadata){
+
+  switch(fieldType){
+    case MYSQL_TYPE_STRING:
+    {
+      guint8 type= metadata >> 8;
+      return type;
+    }
+  }
+  return fieldType;
+}
+
 guint32 calcFieldSize(guint8 fieldType, const gchar *dataBuffer,
                          guint32 metadata)
 {
   guint32 length= 0;
 
 
-
+  //fieldType = real_type(fieldType, metadata);
   switch ((fieldType)) {
   case MYSQL_TYPE_NEWDECIMAL:
     length= decimalBinarySize(metadata >> 8,
@@ -1324,7 +1336,7 @@ guint32 calcFieldSize(guint8 fieldType, const gchar *dataBuffer,
   case MYSQL_TYPE_ENUM:
   case MYSQL_TYPE_STRING:
   {
-    gchar type= metadata >> 8U;
+    guint8 type= metadata >> 8U;
     if ((type == MYSQL_TYPE_SET) || (type == MYSQL_TYPE_ENUM)){
       length= metadata & 0x00ff;
     }
