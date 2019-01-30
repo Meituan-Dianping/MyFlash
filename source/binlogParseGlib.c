@@ -23,12 +23,12 @@ static gchar MAGIC_HEADER_CONTENT[4]={'\xfe','b','i','n'};
 
 static gchar* optDatabaseNames=NULL;
 static gchar* optTableNames=NULL;
-static gsize optStartPos=0;
-static gsize optStopPos=0;
+static guint64 optStartPos=0;
+static guint64 optStopPos=0;
 static gchar* optStartDatetimeStr=NULL;
 static gchar* optStopDatetimeStr=NULL;
 static gchar* optSqlTypes=NULL;
-static gsize optMaxSplitSize=0;
+static guint64 optMaxSplitSize=0;
 static gchar* optBinlogFiles=NULL;
 static gchar* optOutBinlogFileNameBase=NULL;
 static gchar* optLogLevel=NULL;
@@ -223,7 +223,7 @@ typedef struct _EventHeader{
 	guint8  eventType;
 	guint32 serverId;
 	guint32 eventLength;
-	guint32 nextEventPos;
+	guint64 nextEventPos;
 	guint16  flag;
 	gchar *rawEventHeader;
 } EventHeader;
@@ -236,15 +236,15 @@ typedef struct _FormatDescriptionEvent{
 typedef struct _TableMapEvent{
 	EventHeader           *eventHeader;
 	gchar                 *rawTableMapEventDataDetail;
-  gsize databaseNameLength;
+  guint64 databaseNameLength;
   gchar* databaseName;
-  gsize tableNameLength;
+  guint64 tableNameLength;
 	gchar* tableName;
 	guint64 tableId;
-	gsize columnNumber;
+	guint64 columnNumber;
 	GByteArray            *columnTypeArray;
   guint16               *columnMetadataArray;
-  gsize                  metadataBlockSize;
+  guint64                  metadataBlockSize;
 } TableMapEvent;
 
 typedef struct _RowEvent{
@@ -255,7 +255,7 @@ typedef struct _RowEvent{
 typedef struct _QueryEvent{
   EventHeader           *eventHeader;
   gchar                 *rawQueryEventDataDetail;
-  gsize                 databaseNameLength;
+  guint64                 databaseNameLength;
   gchar                 *databaseName;
   gchar                 sqlTextLength;
   gchar                 *sqlText;
@@ -359,7 +359,7 @@ gboolean checkPotentialConflictOutputFile(gchar* baseName){
     return TRUE;
 }
 
-gchar* constructFileNameWithPostfixIndex(gchar* baseName, gsize postfixIndex){
+gchar* constructFileNameWithPostfixIndex(gchar* baseName, guint64 postfixIndex){
   gchar* completeFileName;
   //completeFileName=g_new0(gchar,strlen(baseName)+postfixDisplayLength+1+1);
   if(0 == postfixIndex){
@@ -371,7 +371,7 @@ gchar* constructFileNameWithPostfixIndex(gchar* baseName, gsize postfixIndex){
   return completeFileName;
 }
 
-gboolean rotateFile(gchar* baseName, gsize postfixIndex){
+gboolean rotateFile(gchar* baseName, guint64 postfixIndex){
     gchar* completeFileName=constructFileNameWithPostfixIndex(baseName,postfixIndex);
     if( -1 == access( completeFileName, F_OK )  ) {
       return FALSE;
@@ -385,7 +385,7 @@ gboolean rotateFile(gchar* baseName, gsize postfixIndex){
     return TRUE;
 }
 
-gboolean rotateOutputBinlogFileNames(gchar* baseName, gsize postfixIndex){
+gboolean rotateOutputBinlogFileNames(gchar* baseName, guint64 postfixIndex){
     gchar* flashbackBaseName;
     flashbackBaseName=g_strdup_printf("%s.%s",baseName,"flashback");
     rotateFile(flashbackBaseName,postfixIndex);
@@ -405,7 +405,7 @@ gboolean isGtidEventInGtidSet(GtidEvent* gtidEvent, GtidSetInfo* gtidSetInfo){
 
 int isGtidEventInGtidSetInfoArray(GtidEvent* gtidEvent, GArray* gtidSetInfoArray){
 
-  gsize i=0;
+  guint64 i=0;
   GtidSetInfo* gtidSetInfo;
   for(;i<gtidSetInfoArray->len;i++){
     gtidSetInfo = &g_array_index(gtidSetInfoArray,GtidSetInfo,i);
@@ -431,9 +431,9 @@ gboolean isTransactionShouldDiscardForGtid(GtidEvent* gtidEvent){
 
 gchar* packUuidInto16Bytes(gchar* originalUuid){
   gchar* binaryUuid=g_new0(gchar,16);
-  gsize originalUuidLen;
+  guint64 originalUuidLen;
   originalUuidLen=strlen(originalUuid);
-  gsize effectiveCharIndex=0;
+  guint64 effectiveCharIndex=0;
   int i=0;
   guint8 tempValue=0;
   for(i=0;i<originalUuidLen;i++){
@@ -585,7 +585,7 @@ gboolean isShouldStopOrDiscardForDateTimeRange(guint32 timestamp){
 }
 
 
-gboolean getNextPosOrStop(gsize *nextEventPos, gsize fileIndex, gboolean isLastFile){
+gboolean getNextPosOrStop(guint64 *nextEventPos, guint64 fileIndex, gboolean isLastFile){
 
   gboolean isShouldStop=FALSE;
 
@@ -599,8 +599,8 @@ gboolean getNextPosOrStop(gsize *nextEventPos, gsize fileIndex, gboolean isLastF
   return isShouldStop;
 }
 
-gsize getRawEventDataLengthWithChecksum(EventHeader *eventHeader){
-  gsize rawEventDataLength;
+guint64 getRawEventDataLengthWithChecksum(EventHeader *eventHeader){
+  guint64 rawEventDataLength;
   rawEventDataLength=eventHeader->eventLength - EVENT_HEADER_LENGTH; // - CHECKSUM_LENGTH
   return rawEventDataLength;
 }
@@ -715,8 +715,8 @@ gchar* getRawEventDataFromWrapper(EventWrapper* eventWrapper){
 
 
 
-int printHex(gchar* dataBuffer, gsize dataBufferLength){
-  gsize i;
+int printHex(gchar* dataBuffer, guint64 dataBufferLength){
+  guint64 i;
   i=0;
   for(;i<dataBufferLength;i++){
     if((i>0) &&(0==(i%16))){
@@ -728,7 +728,7 @@ int printHex(gchar* dataBuffer, gsize dataBufferLength){
   return 0;
 }
 
-int printEventInHex(guint8 eventType, gchar* rawEventHeader, gchar* eventDataDetail, gsize eventDataDetailLength){
+int printEventInHex(guint8 eventType, gchar* rawEventHeader, gchar* eventDataDetail, guint64 eventDataDetailLength){
 
   g_warning("%s header:",Binlog_event_type_name[eventType]);
   printHex(rawEventHeader,EVENT_HEADER_LENGTH);
@@ -743,7 +743,7 @@ int printEventWrapperInHex(EventWrapper *eventWrapper){
   eventType=eventWrapper->eventType;
   gchar* rawEventHeader;
   gchar* eventDataDetail;
-  gsize eventDataDetailLength;
+  guint64 eventDataDetailLength;
 
   switch ( eventType) {
     case FORMAT_DESCRIPTION_EVENT:{
@@ -795,7 +795,7 @@ int printRowEventInHex(RowEvent *rowEvent){
   eventDataDetail=rowEvent->rawRowEventDataDetail;
   guint8 eventType;
   eventType=rowEvent->eventHeader->eventType;
-  gsize eventDataDetailLength;
+  guint64 eventDataDetailLength;
   eventDataDetailLength=getRawEventDataLengthWithChecksum(rowEvent->eventHeader);
 
   printEventInHex(eventType,rawEventHeader,eventDataDetail,eventDataDetailLength);
@@ -842,7 +842,7 @@ gboolean isTransactionBeginText(gchar* sqlText){
     return FALSE;
 }
 
-gchar* getStringAndAdvance(gchar* buffer, gsize stringLength, gchar* stringValue){
+gchar* getStringAndAdvance(gchar* buffer, guint64 stringLength, gchar* stringValue){
 	memcpy(stringValue,buffer,stringLength);
 	return buffer+stringLength;
 }
@@ -855,7 +855,7 @@ gchar* getGuint64AndAdvance(gchar *buffer, guint64 *value ){
 
 gchar* getGuint48AndAdvance(gchar *buffer, guint64 *value ){
 	*value=0;
-	gsize uint48Length=6;
+	guint64 uint48Length=6;
 	memcpy(value,buffer,uint48Length);
 	return buffer+uint48Length;
 }
@@ -865,6 +865,10 @@ gchar* getGuint32AndAdvance(gchar *buffer, guint32 *value ){
 	return buffer+sizeof(guint32);
 }
 
+gchar* getGuint64AndAdvance4Byte(gchar *buffer, guint64 *value ){
+	memcpy(value, buffer,4);
+	return buffer+4;
+}
 
 gchar* getGuint16AndAdvance(gchar *buffer, guint16 *value ){
 	memcpy(value, buffer,sizeof(guint16));
@@ -908,11 +912,11 @@ gchar* getPackedIntegerAndAdvance(gchar* buffer, guint64 *value){
 
 }
 
-gsize getBitMapLengthByColumnNumber(gsize columnNumber){
+guint64 getBitMapLengthByColumnNumber(guint64 columnNumber){
   return (columnNumber+7)/8;
 }
 
-gboolean  isBitmapSet(gchar* bitmap, gsize bitPos)
+gboolean  isBitmapSet(gchar* bitmap, guint64 bitPos)
 {
 
   return ((gchar*)bitmap)[bitPos / 8] & (1 << (bitPos & 7));
@@ -938,9 +942,10 @@ int parseHeader(gchar *buffer, EventHeader* eventHeader){
 	buffer=getGuint32AndAdvance(buffer,&eventLength);
 	eventHeader->eventLength=eventLength;
 
-	guint32 nextEventPos;
-	buffer=getGuint32AndAdvance(buffer,&nextEventPos);
-	eventHeader->nextEventPos=nextEventPos;
+	guint64 nextEventPos;
+        nextEventPos=0;
+	buffer=getGuint64AndAdvance4Byte(buffer,&nextEventPos);
+	eventHeader->nextEventPos=le64toh(nextEventPos);	
 
 	guint16 flag;
 	buffer=getGuint16AndAdvance(buffer,&flag);
@@ -987,10 +992,10 @@ int setStmtEndFlag(RowEvent *rowEvent){
 
 }
 
-gsize modifyAndReturnNextEventPos(EventHeader *eventHeader, gsize currentPos){
+guint64 modifyAndReturnNextEventPos(EventHeader *eventHeader, guint64 currentPos){
   eventHeader->nextEventPos= eventHeader->eventLength + currentPos ;
   updateRawEventHeaderByModifyConstructMember(eventHeader);
-  gsize nextEventPos;
+  guint64 nextEventPos;
   nextEventPos = eventHeader->nextEventPos;
   return nextEventPos;
 }
@@ -1002,7 +1007,7 @@ gboolean markLastRowEventInStatement(EventWrapper* eventWrapper){
   }
 
   gchar* rawRowEventDataDetail=((RowEvent*)(eventWrapper->eventPointer))->rawRowEventDataDetail;
-  gsize rowFlagOffset=6;
+  guint64 rowFlagOffset=6;
   guint16 rowFlag;
   rowFlag=getGuint16AndAdvance(rawRowEventDataDetail+rowFlagOffset,&rowFlag);
   rowFlag = (rowFlag | STMT_END_F);
@@ -1162,10 +1167,10 @@ guint32 uintMax(guint32 bits) {
  }
 
 //need to format the ident
-gsize getMetadataLength(guint8 fieldType, gchar* dataBuffer){
-  gsize metadataLength;
+guint64 getMetadataLength(guint8 fieldType, gchar* dataBuffer){
+  guint64 metadataLength;
   metadataLength=0;
-  gsize length;
+  guint64 length;
   length=0;
 
   switch ((fieldType)) {
@@ -1589,7 +1594,7 @@ int parseXidEvent(gchar* dataBuffer, XidEvent* xidEvent){
 }
 
 int parseGtidEvent(gchar* dataBuffer, GtidEvent* gtidEvent){
-  gsize unuseByteLength=1;
+  guint64 unuseByteLength=1;
   guint8 unusedByte;
   dataBuffer=getStringAndAdvance(dataBuffer,unuseByteLength,&unusedByte);
   gchar* uuid=g_new0(gchar,16+1);
@@ -1634,7 +1639,7 @@ int parseTableMapEventData(gchar* dataBuffer,  TableMapEvent* tableMapEvent){
 	dataBuffer=getStringAndAdvance(dataBuffer,tableNameLength+1,tableName);
 	tableMapEvent->tableName=tableName;
 
-	gsize columnNumber;
+	guint64 columnNumber;
 	dataBuffer=getPackedIntegerAndAdvance(dataBuffer,&columnNumber);
 	tableMapEvent->columnNumber=columnNumber;
 
@@ -1651,12 +1656,12 @@ int parseTableMapEventData(gchar* dataBuffer,  TableMapEvent* tableMapEvent){
   columnMetadataArray = (guint16 *)malloc(sizeof(guint16)*columnNumber);
   tableMapEvent->columnMetadataArray=columnMetadataArray;
 
-  gsize metadataBlockSize=0;
+  guint64 metadataBlockSize=0;
   dataBuffer=getPackedIntegerAndAdvance(dataBuffer,&metadataBlockSize);
 
   int columnIndex=0;
-  gsize metadataLength=0;
-  gsize metadata;
+  guint64 metadataLength=0;
+  guint64 metadata;
   for(;columnIndex<tableMapEvent->columnTypeArray->len;columnIndex++){
     metadataLength=getMetadataLength(tableMapEvent->columnTypeArray->data[columnIndex],dataBuffer);
     metadata=0;
@@ -1694,8 +1699,8 @@ int appendToAllEventList(GList **allEventsList, EventHeader *eventHeader,gpointe
 }
 
 /*
-gsize getRawEventDataLengthWithChecksum(EventHeader *eventHeader){
-  gsize rawEventDataLength;
+guint64 getRawEventDataLengthWithChecksum(EventHeader *eventHeader){
+  guint64 rawEventDataLength;
   rawEventDataLength=eventHeader->eventLength - EVENT_HEADER_LENGTH; // - CHECKSUM_LENGTH
   return rawEventDataLength;
 }
@@ -1782,7 +1787,7 @@ EventWrapper* deepCopyEventWrapper( EventWrapper *originalEventWrapper ){
       //targetColumnTypeArray=g_byte_array_new_take(((TableMapEvent*)originalEventWrapper->eventPointer)->columnTypeArray->data, ((TableMapEvent*)originalEventWrapper->eventPointer)->columnTypeArray->len);
       ((TableMapEvent*)targetEventWrapper->eventPointer)->columnTypeArray=targetColumnTypeArray;
 
-      //gsize metadataBlockSize=0;
+      //guint64 metadataBlockSize=0;
       ((TableMapEvent*)targetEventWrapper->eventPointer)->metadataBlockSize=((TableMapEvent*)originalEventWrapper->eventPointer)->metadataBlockSize;
 
       guint16 *columnMetadataArray;
@@ -1903,7 +1908,7 @@ int constructLeastExecutionUnitFromAllEventsList(const GList *allEventsList, GLi
   EventWrapper* eventWrapper;
   LeastExecutionUnitEvents *leastExecutionUnitEvents;
   leastExecutionUnitEvents=NULL;
-  gsize leastExecutionUnitEventsIndicator;
+  guint64 leastExecutionUnitEventsIndicator;
   leastExecutionUnitEventsIndicator=0;
   TableMapEvent * tableMapEventPointer = NULL;
   while(NULL != allEventsList){
@@ -1998,7 +2003,7 @@ int reverseLeastExecutionUnitEventsForUpdateRowEvent(LeastExecutionUnitEvents *l
 
   RowEvent * rowEvent;
   while( NULL != rowEventList ){
-    gsize offsetBeforeNullBitMap=0;
+    guint64 offsetBeforeNullBitMap=0;
     rowEvent=rowEventList->data;
     gchar* rawRowEventDataDetail = rowEvent->rawRowEventDataDetail;
 
@@ -2011,7 +2016,7 @@ int reverseLeastExecutionUnitEventsForUpdateRowEvent(LeastExecutionUnitEvents *l
     rawRowEventDataDetail=getGuint32AndAdvance(rawRowEventDataDetail,&skipUnused);
     offsetBeforeNullBitMap+=4;
 
-    gsize usedColumns;
+    guint64 usedColumns;
     rawRowEventDataDetail=getPackedIntegerAndAdvance(rawRowEventDataDetail,&usedColumns);
     gchar *beforeImageColumn=g_new0(gchar,getBitMapLengthByColumnNumber(usedColumns));
     rawRowEventDataDetail=getStringAndAdvance(rawRowEventDataDetail,getBitMapLengthByColumnNumber(usedColumns),beforeImageColumn);
@@ -2135,7 +2140,7 @@ int appendFormatDescriptionEventToChannel(GIOChannel *ioChannel){
     return 1;
   }
   GIOStatus ioStatus;
-  gsize bytes_written;
+  guint64 bytes_written;
   ioStatus = g_io_channel_write_chars(ioChannel,formatDescriptionEventForGlobalUse->eventHeader->rawEventHeader,EVENT_HEADER_LENGTH,&bytes_written,NULL);
   if  ( G_IO_STATUS_NORMAL != ioStatus){
     g_warning("Failed to write the FormatDescriptionEvent header");
@@ -2151,11 +2156,11 @@ int appendFormatDescriptionEventToChannel(GIOChannel *ioChannel){
 
 }
 
-GList* constructBinlogFromEventListWithSizeLimit(GList* allEventsList, gchar* binlogFileName , gsize maxSplitSize){
+GList* constructBinlogFromEventListWithSizeLimit(GList* allEventsList, gchar* binlogFileName , guint64 maxSplitSize){
   GIOChannel*  binlogOutChannel;
   binlogOutChannel=getIoChannelForWrite(binlogFileName);
   GIOStatus ioStatus;
-  gsize bytes_written;
+  guint64 bytes_written;
   ioStatus = g_io_channel_write_chars(binlogOutChannel,MAGIC_HEADER_CONTENT,sizeof(MAGIC_HEADER_CONTENT),&bytes_written,NULL);
   if  ( G_IO_STATUS_NORMAL != ioStatus){
     g_warning("Failed to write the magic word");
@@ -2163,7 +2168,7 @@ GList* constructBinlogFromEventListWithSizeLimit(GList* allEventsList, gchar* bi
   }
 
   appendFormatDescriptionEventToChannel(binlogOutChannel);
-  gsize currentPos;
+  guint64 currentPos;
   currentPos = sizeof(MAGIC_HEADER_CONTENT) + formatDescriptionEventForGlobalUse->eventHeader->eventLength;
 
   EventWrapper* eventWrapper=NULL;
@@ -2234,7 +2239,7 @@ GList* splitBigRowEventsToTableMapWithRowEventForEventList(GList* allEventsList)
 }
 
 int constructBinlogFromEventList(GList* allEventsList){
-  gsize postfixIndex;
+  guint64 postfixIndex;
   postfixIndex=1;
   gchar* completeFileName;
   allEventsList=splitBigRowEventsToTableMapWithRowEventForEventList(allEventsList);
@@ -2259,7 +2264,7 @@ int constructBinlogFromLeastExecutionUintList( GList* allLeastExecutionUnitList 
   GIOChannel*  binlogFlashbackOutChannel;
   binlogFlashbackOutChannel=getIoChannelForWrite(binlogFlashbackOutFileName);
   GIOStatus ioStatus;
-  gsize bytes_written;
+  guint64 bytes_written;
   ioStatus = g_io_channel_write_chars(binlogFlashbackOutChannel,MAGIC_HEADER_CONTENT,sizeof(MAGIC_HEADER_CONTENT),&bytes_written,NULL);
   if  ( G_IO_STATUS_NORMAL != ioStatus){
     g_warning("Failed to write the magic word");
@@ -2267,7 +2272,7 @@ int constructBinlogFromLeastExecutionUintList( GList* allLeastExecutionUnitList 
   }
 
   appendFormatDescriptionEventToChannel(binlogFlashbackOutChannel);
-  gsize currentPos;
+  guint64 currentPos;
   currentPos = sizeof(MAGIC_HEADER_CONTENT) + formatDescriptionEventForGlobalUse->eventHeader->eventLength;
 
 
@@ -2355,7 +2360,7 @@ int flashbackAllEvents(GList* allEventsList){
 
 
 
-int processBinlog(GIOChannel * binlogGlibChannel,gsize fileIndex, gboolean isLastFile){
+int processBinlog(GIOChannel * binlogGlibChannel,guint64 fileIndex, gboolean isLastFile){
 	guint64 MagicHeaderLength=4;
 	guint64 currentPos;
 	currentPos=MagicHeaderLength;
@@ -2367,20 +2372,22 @@ int processBinlog(GIOChannel * binlogGlibChannel,gsize fileIndex, gboolean isLas
 
 	gchar* headerBuffer;
 	headerBuffer=(gchar*)malloc(MAX_HEADER_LENGTH);
-	gsize realHeaderLength;
+	guint64 realHeaderLength;
   GList *allEventsList = NULL;
   gboolean isShouldDiscardForGtid=FALSE;
 	while( G_IO_STATUS_NORMAL == (ioStatus = g_io_channel_read_chars(binlogGlibChannel,headerBuffer,EVENT_HEADER_LENGTH,&realHeaderLength,NULL))){
 		EventHeader *eventHeader;
 		eventHeader=g_new0(EventHeader,1);
 		parseHeader(headerBuffer,eventHeader);
+		g_warning("currentPos %llu \n", currentPos);
+		g_warning("eventHeader %llu \n", eventHeader->nextEventPos);
 		currentPos += EVENT_HEADER_LENGTH;
 		if( G_IO_STATUS_NORMAL != (ioStatus=g_io_channel_seek_position(binlogGlibChannel,currentPos,G_SEEK_SET,NULL)) ){
 			g_warning("failed to seek the pos %ld \n", currentPos);
 		}
 
 		gchar* dataBuffer = g_new0(gchar , (eventHeader->eventLength-EVENT_HEADER_LENGTH));
-		gsize realDataLength;
+		guint64 realDataLength;
 
 		if (G_IO_STATUS_NORMAL == (ioStatus = g_io_channel_read_chars(binlogGlibChannel,dataBuffer,(eventHeader->eventLength-EVENT_HEADER_LENGTH),&realDataLength,NULL)) ){
 			g_warning("event type: %s ",Binlog_event_type_name[eventHeader->eventType]);
@@ -2437,7 +2444,7 @@ int processBinlog(GIOChannel * binlogGlibChannel,gsize fileIndex, gboolean isLas
 
 
 		}
-		currentPos=eventHeader->nextEventPos;
+		currentPos += (eventHeader->eventLength - EVENT_HEADER_LENGTH);
 
     gboolean isShouldStop=FALSE;
     isShouldStop=getNextPosOrStop(&currentPos,fileIndex,isLastFile);
@@ -2653,14 +2660,14 @@ int main(int argc, char **argv){
     exit(1);
   }
   binlogFileNameArray=g_strsplit(optBinlogFiles,",",0);
-  gsize binlogFileNameArraySize=0;
+  guint64 binlogFileNameArraySize=0;
 
 
   while (binlogFileNameArray[binlogFileNameArraySize]) {
     binlogFileNameArraySize++;
   }
 
-  gsize i=0;
+  guint64 i=0;
 
   while( binlogFileNameArray[i] ){
 	if( access(binlogFileNameArray[i] , F_OK ) == -1 ) {
