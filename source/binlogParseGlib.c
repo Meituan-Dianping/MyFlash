@@ -41,6 +41,9 @@ static time_t globalStopTimestamp=0;
 static GArray* globalIncludeGtidsArray=NULL;
 static GArray* globalExcludeGtidsArray=NULL;
 
+static GHashTable* tableNamesHash=NULL;
+static GHashTable* databaseNamesHash=NULL;
+
 
 
 
@@ -458,8 +461,29 @@ gchar* packUuidInto16Bytes(gchar* originalUuid){
 }
 
 
+gboolean isDatabaseShouldApply(gchar* databaseName){
+	if ( g_hash_table_size(databaseNamesHash) <= 0){
+		return TRUE;
+	}
+	if ( g_hash_table_lookup(databaseNamesHash, databaseName) ){
+		return TRUE;
+	}
+	return FALSE; 
+	
+}
 
+gboolean isTableShouldApply(gchar* tableName){
+	if ( (NULL == tableNamesHash) ||  g_hash_table_size(tableNamesHash) <= 0){
+		return TRUE;
+	}
+	if ( g_hash_table_lookup(tableNamesHash, tableName) ){
+		return TRUE;
+	}
+	return FALSE; 
+	
+}
 
+/*
 gboolean isDatabaseShouldApply(gchar* databaseName){
   if (NULL == optDatabaseNames){
     return TRUE;
@@ -491,7 +515,7 @@ gboolean isTableShouldApply(gchar* tableName){
   }
   return FALSE;
 }
-
+*/
 
 gboolean isEventTypeShouldApply(guint8 eventType){
   if (NULL == optSqlTypes){
@@ -2549,6 +2573,25 @@ GArray* parsemultipleGtidSetToGtidSetInfoArray(gchar* multipleGtidSet ){
 
 }
 
+
+GHashTable* parseNames(gchar* names){
+	if (NULL == names){
+		return NULL;
+	}
+	gchar **nameArray;
+	nameArray=g_strsplit(names, ",", 0);
+	int i=0;
+	GHashTable* namesHash = NULL;
+	if (nameArray[0]){
+		namesHash = g_hash_table_new(g_str_hash, g_str_equal);
+	}
+	while( nameArray[i] ){
+		g_hash_table_insert(namesHash,g_strndup(nameArray[i], strlen(nameArray[i])),g_new0(gchar, 1));	
+		i++;
+	}
+	return namesHash;
+} 
+
 int parseOption(int argc, char **argv){
 
   GError *error = NULL;
@@ -2619,6 +2662,8 @@ int parseOption(int argc, char **argv){
 
    globalIncludeGtidsArray=parsemultipleGtidSetToGtidSetInfoArray(optIncludeGtids);
    globalExcludeGtidsArray=parsemultipleGtidSetToGtidSetInfoArray(optExcludeGtids);
+	 tableNamesHash = parseNames(optTableNames); 
+	 databaseNamesHash = parseNames(optDatabaseNames); 
 
    return 0;
 
