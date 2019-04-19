@@ -1935,6 +1935,10 @@ int constructLeastExecutionUnitFromAllEventsList(const GList *allEventsList, GLi
   guint64 leastExecutionUnitEventsIndicator;
   leastExecutionUnitEventsIndicator=0;
   TableMapEvent * tableMapEventPointer = NULL;
+	if ( !allEventsList ){
+		return 0;
+	}
+	GArray* allLeastExecutionUnitArray = g_array_sized_new(FALSE, FALSE, sizeof(LeastExecutionUnitEvents), g_list_length(allEventsList)/2);
   while(NULL != allEventsList){
 
      eventWrapper=(EventWrapper*)(allEventsList->data);
@@ -1950,13 +1954,14 @@ int constructLeastExecutionUnitFromAllEventsList(const GList *allEventsList, GLi
          leastExecutionUnitEvents->tableMapEvent = tableMapEventPointer;
          setStmtEndFlag((RowEvent *)eventWrapper->eventPointer);
          leastExecutionUnitEvents->rowEventList=g_list_append(leastExecutionUnitEvents->rowEventList, (RowEvent *)eventWrapper->eventPointer);
-         leastExecutionUnitEvents->originalRowEventType=eventWrapper->eventType;
+				 leastExecutionUnitEvents->originalRowEventType=eventWrapper->eventType;
          g_debug("%s added to leastExecutionUnitEvents \n",Binlog_event_type_name[eventWrapper->eventType]);
          //if(  (NULL != allEventsList->next) && ( isRowEvent(((EventWrapper*)(allEventsList->next->data))->eventType) ) ){
         //   int i=1;
          //}
          if((TRUE == isLeastExecutionUnitShouldKeep(leastExecutionUnitEvents) )){
-           *allLeastExecutionUnitList=g_list_append(*allLeastExecutionUnitList,leastExecutionUnitEvents);
+           allLeastExecutionUnitArray = g_array_append_val(allLeastExecutionUnitArray, leastExecutionUnitEvents);
+					//*allLeastExecutionUnitList=g_list_append(*allLeastExecutionUnitList,leastExecutionUnitEvents);
          }
 
 
@@ -1990,6 +1995,12 @@ int constructLeastExecutionUnitFromAllEventsList(const GList *allEventsList, GLi
      //other non TableMapEvent non RowEvent
     allEventsList=allEventsList->next;
   }
+	
+	guint allLeastExecutionUnitArrayIndex = g_array_get_element_size(allLeastExecutionUnitArray);
+	while (allLeastExecutionUnitArrayIndex >0 ){
+		*allLeastExecutionUnitList=g_list_prepend(*allLeastExecutionUnitList, &allLeastExecutionUnitArray[allLeastExecutionUnitArrayIndex - 1]);
+		allLeastExecutionUnitArrayIndex--;	
+	}
 
   g_debug("%d events in allLeastExecutionUnitList ",g_list_length(*allLeastExecutionUnitList ));
   return 0;
