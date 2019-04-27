@@ -293,6 +293,7 @@ typedef struct _LeastExecutionUnitEvents{
 } LeastExecutionUnitEvents;
 
 static FormatDescriptionEvent* formatDescriptionEventForGlobalUse=NULL;
+static XidEvent* xidEventForGlobalUse=NULL;
 
 /*
 typedef struct _Transaction{
@@ -639,6 +640,14 @@ FormatDescriptionEvent* getFormatDescriptionEventForGlobalUse(){
   return formatDescriptionEventForGlobalUse;
 }
 
+int setXidEventForGlobalUse(XidEvent *xidEvent ){
+  xidEventForGlobalUse=xidEvent;
+  return 0;
+}
+
+int getXidEventForGlobalUse(){
+  return xidEventForGlobalUse;
+}
 
 GIOChannel* getIoChannelForWrite(gchar* fileName){
   GIOChannel * toWriteChannel;
@@ -2325,6 +2334,14 @@ int constructBinlogFromLeastExecutionUintList( GList* allLeastExecutionUnitList 
       }
       rowEventList=rowEventList->next;
     }
+    if (!xidEventForGlobalUse){
+      g_warning("No XID event found, maybe the position range or datetime range you specified is too small! Try with a larger range");
+    }
+    //Append Xid event
+    currentPos=modifyAndReturnNextEventPos(xidEventForGlobalUse->eventHeader,currentPos);
+    ioStatus = g_io_channel_write_chars(binlogFlashbackOutChannel,xidEventForGlobalUse->eventHeader->rawEventHeader, EVENT_HEADER_LENGTH,  &bytes_written, NULL);
+    ioStatus = g_io_channel_write_chars(binlogFlashbackOutChannel,xidEventForGlobalUse->rawXidEventDataDetail,getRawEventDataLengthWithChecksum(xidEventForGlobalUse->eventHeader), &bytes_written, NULL);
+    
     allLeastExecutionUnitList=allLeastExecutionUnitList->next;
 
   }
@@ -2386,6 +2403,7 @@ int processBinlog(GIOChannel * binlogGlibChannel,guint64 fileIndex, gboolean isL
 	guint64 realHeaderLength;
   GList *allEventsList = NULL;
   gboolean isShouldDiscardForGtid=FALSE;
+  gboolean isFirstXidEventAppeared=FALSE;
 	while( G_IO_STATUS_NORMAL == (ioStatus = g_io_channel_read_chars(binlogGlibChannel,headerBuffer,EVENT_HEADER_LENGTH,&realHeaderLength,NULL))){
 		EventHeader *eventHeader;
 		eventHeader=g_new0(EventHeader,1);
@@ -2437,9 +2455,14 @@ int processBinlog(GIOChannel * binlogGlibChannel,guint64 fileIndex, gboolean isL
           break;
         }
         case XID_EVENT:{
-          XidEvent *xidEvent= g_new0(XidEvent,1);
-          initXidEvent(xidEvent,eventHeader,dataBuffer);
-          appendToAllEventList(&allEventsList,eventHeader,(gpointer)xidEvent);
+          if (FALSE == isFirstXidEventAppeared){
+            XidEvent *xidEvent= g_new0(XidEvent,1);
+            initXidEvent(xidEvent,eventHeader,dataBuffer);
+            //appendToAllEventList(&allEventsList,eventHeader,(gpointer)xidEvent);
+            setXidEventForGlobalUse(xidEvent);
+            isFirstXidEventAppeared = TRUE;
+            break;
+       		}
           break;
         }
         case GTID_LOG_EVENT:{
