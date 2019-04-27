@@ -463,7 +463,7 @@ gchar* packUuidInto16Bytes(gchar* originalUuid){
 
 
 gboolean isDatabaseShouldApply(gchar* databaseName){
-	if ( g_hash_table_size(databaseNamesHash) <= 0){
+	if ( (NULL == databaseNamesHash) || g_hash_table_size(databaseNamesHash) <= 0){
 		return TRUE;
 	}
 	if ( g_hash_table_lookup(databaseNamesHash, databaseName) ){
