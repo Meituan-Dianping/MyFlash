@@ -2455,14 +2455,11 @@ int processBinlog(GIOChannel * binlogGlibChannel,guint64 fileIndex, gboolean isL
           break;
         }
         case XID_EVENT:{
-          if (FALSE == isFirstXidEventAppeared){
-            XidEvent *xidEvent= g_new0(XidEvent,1);
-            initXidEvent(xidEvent,eventHeader,dataBuffer);
-            //appendToAllEventList(&allEventsList,eventHeader,(gpointer)xidEvent);
-            setXidEventForGlobalUse(xidEvent);
-            isFirstXidEventAppeared = TRUE;
-            break;
-       		}
+          XidEvent *xidEvent= g_new0(XidEvent,1);
+          initXidEvent(xidEvent,eventHeader,dataBuffer);
+          appendToAllEventList(&allEventsList,eventHeader,(gpointer)xidEvent);
+          setXidEventForGlobalUse(xidEvent);
+          isFirstXidEventAppeared = TRUE;
           break;
         }
         case GTID_LOG_EVENT:{
