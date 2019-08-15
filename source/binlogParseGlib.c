@@ -337,6 +337,7 @@ gboolean isConsideredEventType(guint8 eventType){
   return isConsidered;
 }
 
+
 gboolean checkPotentialConflictOutputFile(gchar* baseName){
     int reti;
     regex_t regex;
@@ -2455,12 +2456,15 @@ int processBinlog(GIOChannel * binlogGlibChannel,guint64 fileIndex, gboolean isL
           break;
         }
         case XID_EVENT:{
+        if (FALSE == isFirstXidEventAppeared){
           XidEvent *xidEvent= g_new0(XidEvent,1);
           initXidEvent(xidEvent,eventHeader,dataBuffer);
-          appendToAllEventList(&allEventsList,eventHeader,(gpointer)xidEvent);
+          //appendToAllEventList(&allEventsList,eventHeader,(gpointer)xidEvent);
           setXidEventForGlobalUse(xidEvent);
           isFirstXidEventAppeared = TRUE;
           break;
+        }
+        break;
         }
         case GTID_LOG_EVENT:{
           GtidEvent *gtidEvent= g_new0(GtidEvent,1);
@@ -2495,7 +2499,7 @@ int processBinlog(GIOChannel * binlogGlibChannel,guint64 fileIndex, gboolean isL
       allEventsList=g_list_delete_link(allEventsList,head);
     }
 
-    if((TRUE == isShouldDiscardForGtid) && isConsideredEventType(eventHeader->eventType)){
+    if((TRUE == isShouldDiscardForGtid) && isConsideredEventType(eventHeader->eventType) && (eventHeader->eventType != XID_EVENT)){
       g_warning("we discard it for gtid setting");
       GList* head = allEventsList;
       allEventsList=g_list_delete_link(allEventsList,head);
