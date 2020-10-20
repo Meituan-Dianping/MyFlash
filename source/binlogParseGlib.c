@@ -23,6 +23,7 @@ static gchar MAGIC_HEADER_CONTENT[4]={'\xfe','b','i','n'};
 
 static gchar* optDatabaseNames=NULL;
 static gchar* optTableNames=NULL;
+static gchar* optTableNamesFile=NULL;
 static guint64 optStartPos=0;
 static guint64 optStopPos=0;
 static gchar* optStartDatetimeStr=NULL;
@@ -34,12 +35,16 @@ static gchar* optOutBinlogFileNameBase=NULL;
 static gchar* optLogLevel=NULL;
 static gchar* optIncludeGtids=NULL;
 static gchar* optExcludeGtids=NULL;
+static gchar* optIncludeGtidsFile=NULL;
+static gchar* optExcludeGtidsFile=NULL;
 
 
 static time_t globalStartTimestamp=0;
 static time_t globalStopTimestamp=0;
 static GArray* globalIncludeGtidsArray=NULL;
 static GArray* globalExcludeGtidsArray=NULL;
+static GHashTable* globalIncludeGtidsHash=NULL;
+static GHashTable* globalExcludeGtidsHash=NULL;
 
 static GHashTable* tableNamesHash=NULL;
 static GHashTable* databaseNamesHash=NULL;
@@ -408,6 +413,19 @@ gboolean isGtidEventInGtidSet(GtidEvent* gtidEvent, GtidSetInfo* gtidSetInfo){
 
 }
 
+int isGtidEventInGtidSetInfoHashTable(GtidEvent* gtidEvent, GHashTable* gtidSetHash){
+  if (!gtidEvent || !gtidEvent->uuid) {
+    return FALSE; 
+  }
+  gchar* gtidEventHashKey;
+  
+  gtidEventHashKey=g_strdup_printf("%s:%llu", gtidEvent->uuid, gtidEvent->seqNo);
+  if ( g_hash_table_lookup(gtidSetHash, gtidEventHashKey) ){
+    return TRUE;
+  }
+  return FALSE; 
+}
+
 int isGtidEventInGtidSetInfoArray(GtidEvent* gtidEvent, GArray* gtidSetInfoArray){
 
   guint64 i=0;
@@ -421,18 +439,40 @@ int isGtidEventInGtidSetInfoArray(GtidEvent* gtidEvent, GArray* gtidSetInfoArray
   return FALSE;
 }
 
+
+gboolean isInIncludeGtids(GtidEvent* gtidEvent) {
+  if ((globalIncludeGtidsArray && isGtidEventInGtidSetInfoArray(gtidEvent,globalIncludeGtidsArray)
+      || (globalIncludeGtidsHash && isGtidEventInGtidSetInfoHashTable(gtidEvent, globalIncludeGtidsHash)))) {
+    return TRUE;
+  }
+  return FALSE;
+}
+
+gboolean isInExcludeGtids(GtidEvent* gtidEvent) {
+  if ((globalExcludeGtidsArray && isGtidEventInGtidSetInfoArray(gtidEvent,globalExcludeGtidsArray)
+      || (globalExcludeGtidsHash && isGtidEventInGtidSetInfoHashTable(gtidEvent, globalExcludeGtidsHash)))) {
+    return TRUE;
+  }
+  return FALSE;
+}
+
 gboolean isTransactionShouldDiscardForGtid(GtidEvent* gtidEvent){
 
+  if ((!optIncludeGtids || isInIncludeGtids(gtidEvent)) && (!optExcludeGtids || !isInExcludeGtids(gtidEvent)) ) {
+    return FALSE;
+  }
+  return TRUE;
+  
 
+/*
   if((NULL ==globalIncludeGtidsArray) || (isGtidEventInGtidSetInfoArray(gtidEvent,globalIncludeGtidsArray)) ){
     if((NULL == globalExcludeGtidsArray) || (!isGtidEventInGtidSetInfoArray(gtidEvent,globalExcludeGtidsArray)) ){
       return FALSE;
     }
   }
    return TRUE;
-
+*/
 }
-
 
 gchar* packUuidInto16Bytes(gchar* originalUuid){
   gchar* binaryUuid=g_new0(gchar,16);
@@ -575,7 +615,6 @@ gboolean isInDateTimeRange(guint32 timestamp){
     }
   }else {
     startTimeStamp=0;
-  }
 
   if(NULL != optStopDatetimeStr){
     if ( strptime(optStopDatetimeStr, "%Y-%m-%d %H:%M:%S", &tm) != NULL ){
@@ -2567,16 +2606,20 @@ GArray* parsemultipleGtidSetToGtidSetInfoArray(gchar* multipleGtidSet ){
 
     //:12
     if( (2 > g_strv_length(seqNos)) ){
+        /*
+        gchar* gtidEventHashKey;
         gtidSetInfo->startSeqNo=S64(seqNos[0]);
         gtidSetInfo->stopSeqNo=S64(seqNos[0]);
+        gtidEventHashKey=g_strdup_printf("%s:%llu", gtidSetInfo->uuid, gtidSetInfo->seqNo);
+        */
     }
     //:12-100
     else{
         gtidSetInfo->startSeqNo=S64(seqNos[0]);
         gtidSetInfo->stopSeqNo=S64(seqNos[1]);
+        g_array_append_val(gtidSetArray,*gtidSetInfo);
     }
 
-    g_array_append_val(gtidSetArray,*gtidSetInfo);
     i++;
   }
 
@@ -2584,6 +2627,50 @@ GArray* parsemultipleGtidSetToGtidSetInfoArray(gchar* multipleGtidSet ){
 
 }
 
+
+GHashTable* parsemultipleGtidSetToGtidSetInfoHash(gchar* multipleGtidSet ){
+  if(NULL == multipleGtidSet){
+    return NULL;
+  }
+  GHashTable* gtidSetHash;
+  gtidSetHash = g_hash_table_new(g_str_hash, g_str_equal);
+  gchar** gtidSets;
+  gchar** uuidWithSeqNos;
+  gtidSets = g_strsplit(multipleGtidSet,",",0);
+  guint64 tempSeqNo;
+
+  gchar** seqNos;
+  int i=0;
+  while( gtidSets[i] ){
+    GtidSetInfo* gtidSetInfo = g_new0(GtidSetInfo,1);
+    uuidWithSeqNos=g_strsplit(gtidSets[i],":",0);
+    gtidSetInfo->uuid=packUuidInto16Bytes(uuidWithSeqNos[0]);
+    seqNos = g_strsplit(uuidWithSeqNos[1],"-",0);
+
+    //:12
+    if( (2 > g_strv_length(seqNos)) ){
+        
+        gchar* gtidEventHashKey;
+        gtidSetInfo->startSeqNo=S64(seqNos[0]);
+        gtidSetInfo->stopSeqNo=S64(seqNos[0]);
+        gtidEventHashKey=g_strdup_printf("%s:%llu", gtidSetInfo->uuid, gtidSetInfo->startSeqNo);
+        g_hash_table_insert(gtidSetHash, g_strndup(gtidEventHashKey, strlen(gtidEventHashKey)), g_new0(gchar, 1));
+        
+    }
+    //:12-100
+    else{
+        /*
+        gtidSetInfo->startSeqNo=S64(seqNos[0]);
+        gtidSetInfo->stopSeqNo=S64(seqNos[1]);
+        */ 
+   }
+
+    i++;
+  }
+
+  return gtidSetHash;
+
+}
 
 GHashTable* parseNames(gchar* names){
 	if (NULL == names){
@@ -2610,6 +2697,7 @@ int parseOption(int argc, char **argv){
   GOptionEntry entries [] =
     { { "databaseNames", 0, 0, G_OPTION_ARG_STRING, &optDatabaseNames, "databaseName to apply. if multiple, seperate by comma(,)", NULL },
       { "tableNames", 0, 0, G_OPTION_ARG_STRING, &optTableNames, "tableName to apply. if multiple, seperate by comma(,)", NULL },
+      { "tableNames-file", 0, 0, G_OPTION_ARG_STRING, &optTableNamesFile, "tableName to apply. if multiple, seperate by comma(,)", NULL },
       { "start-position", 0, 0, G_OPTION_ARG_INT, &optStartPos, "start position", NULL },
       { "stop-position", 0, 0, G_OPTION_ARG_INT, &optStopPos, "stop position", NULL },
       { "start-datetime", 0, 0, G_OPTION_ARG_STRING, &optStartDatetimeStr, "start time (format %Y-%m-%d %H:%M:%S)", NULL },
@@ -2619,8 +2707,10 @@ int parseOption(int argc, char **argv){
       { "binlogFileNames", 0, 0, G_OPTION_ARG_STRING, &optBinlogFiles, "binlog files to process. if multiple, seperate by comma(,)  ", NULL },
       { "outBinlogFileNameBase", 0, 0, G_OPTION_ARG_STRING, &optOutBinlogFileNameBase, "output binlog file name base", NULL },
       { "logLevel", 0, 0, G_OPTION_ARG_STRING, &optLogLevel, "log level, available option is debug,warning,error", NULL },
-      { "include-gtids",0,0,G_OPTION_ARG_STRING, &optIncludeGtids, "gtids to process", NULL },
-      { "exclude-gtids",0,0,G_OPTION_ARG_STRING, &optExcludeGtids, "gtids to skip", NULL },
+      { "include-gtids",0,0,G_OPTION_ARG_STRING, &optIncludeGtids, "gtids to process. if multiple, seperate by comma(,)", NULL },
+      { "include-gtids-file",0,0,G_OPTION_ARG_STRING, &optIncludeGtidsFile, "gtids to process. if multiple, seperate by comma(,)", NULL },
+      { "exclude-gtids",0,0,G_OPTION_ARG_STRING, &optExcludeGtids, "gtids to skip. if multiple, seperate by comma(,)", NULL },
+      { "exclude-gtids-file",0,0,G_OPTION_ARG_STRING, &optExcludeGtidsFile, "gtids to skip. if multiple, seperate by comma(,)", NULL },
       { NULL }
     };
 
@@ -2670,10 +2760,27 @@ int parseOption(int argc, char **argv){
    }else {
      globalStopTimestamp=G_MAXUINT32;
    }
+  
+  /*replace optIncludeGtidsFile content to optIncludeGtids*/
+  if(NULL != optIncludeGtidsFile){
+    g_file_get_contents(optIncludeGtidsFile, &optIncludeGtids, NULL, NULL);  
+  }
+
+  /*replace optExcludeGtidsFile content to optExcludeGtids*/
+  if(NULL != optExcludeGtidsFile){
+    g_file_get_contents(optExcludeGtidsFile, &optExcludeGtids, NULL, NULL);
+  }
+
+  /*replace optTableNamesFile contnet to optTableNames*/
+  if(NULL != optTableNames){
+    g_file_get_contents(optTableNamesFile, &optTableNames, NULL, NULL);
+  }  
 
    globalIncludeGtidsArray=parsemultipleGtidSetToGtidSetInfoArray(optIncludeGtids);
    globalExcludeGtidsArray=parsemultipleGtidSetToGtidSetInfoArray(optExcludeGtids);
-	 tableNamesHash = parseNames(optTableNames); 
+	 globalIncludeGtidsHash=parsemultipleGtidSetToGtidSetInfoHash(optIncludeGtids);
+   globalExcludeGtidsHash=parsemultipleGtidSetToGtidSetInfoHash(optExcludeGtids);
+   tableNamesHash = parseNames(optTableNames); 
 	 databaseNamesHash = parseNames(optDatabaseNames); 
 
    return 0;
