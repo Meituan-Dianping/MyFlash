@@ -2772,7 +2772,7 @@ int parseOption(int argc, char **argv){
   }
 
   /*replace optTableNamesFile contnet to optTableNames*/
-  if(NULL != optTableNames){
+  if(NULL != optTableNamesFile){
     g_file_get_contents(optTableNamesFile, &optTableNames, NULL, NULL);
   }  
 
